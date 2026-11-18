@@ -167,6 +167,27 @@ export function decorateMain(main) {
   decorateBlocks(main);
 }
 
+/** Templates with their own code in /templates/<name>/<name>.{js,css} */
+const TEMPLATES = ['landing'];
+
+/**
+ * Loads the CSS and JS of the page template (metadata "template"), if it has any.
+ * @param {Document} doc The document
+ */
+async function loadTemplate(doc) {
+  const template = toClassName(getMetadata('template'));
+  if (!TEMPLATES.includes(template)) return;
+  try {
+    const cssLoaded = loadCSS(`${window.hlx.codeBasePath}/templates/${template}/${template}.css`);
+    const mod = await import(`${window.hlx.codeBasePath}/templates/${template}/${template}.js`);
+    if (mod.default) await mod.default(doc);
+    await cssLoaded;
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error(`Failed to load template ${template}`, error);
+  }
+}
+
 /**
  * Loads everything needed to get to LCP.
  * @param {Element} doc The container element
@@ -175,6 +196,7 @@ async function loadEager(doc) {
   const root = getRootPath().substring(1);
   doc.documentElement.lang = LANG_MAP[root] || 'en';
   decorateTemplateAndTheme();
+  await loadTemplate(doc);
   if (getMetadata('breadcrumbs').toLowerCase() === 'true') {
     doc.body.dataset.breadcrumbs = true;
   }
@@ -209,8 +231,11 @@ async function loadLazy(doc) {
   const element = hash ? doc.getElementById(hash.substring(1)) : false;
   if (hash && element) element.scrollIntoView();
 
-  loadHeader(doc.querySelector('header'));
-  loadFooter(doc.querySelector('footer'));
+  // templates (e.g. landing) may remove the header/footer
+  const header = doc.querySelector('header');
+  const footer = doc.querySelector('footer');
+  if (header) loadHeader(header);
+  if (footer) loadFooter(footer);
 
   loadCSS(`${window.hlx.codeBasePath}/styles/lazy-styles.css`);
   loadCSS(`${window.hlx.codeBasePath}/styles/article.css`);
